@@ -1,3 +1,4 @@
+import uuid
 from slyguy import settings, userdata
 from slyguy.exceptions import Error
 from slyguy.util import jwt_data
@@ -7,12 +8,14 @@ from streamotion.api import API as BaseAPI
 from .constants import *
 from .language import _
 
+
 class APIError(Error):
     pass
 
 class API(BaseAPI):
+
     BASE_URL = API_URL
-    CLIENT_ID = CLIENT_ID
+    CLIENT_ID = userdata.get('client_id')
 
     def is_subscribed(self):
         if self._subscribed is not None:
@@ -114,14 +117,14 @@ class API(BaseAPI):
 
         payload = {
             'assetId': asset_id,
-            'canPlayHevc': settings.common_settings.getBool('h265', False),
+            'canPlayHevc': settings.common_settings.getBool('h265', True),
            # 'contentType': 'application/xml+dash',
            # 'drm': True,
             'forceSdQuality': False,
             'playerName': 'exoPlayerTV',
-            'udid': UDID,
-        }
+            'udid': str(uuid.uuid4()),
 
+        }
         data = self._session.post(PLAY_URL + '/play', json=payload, headers=self._auth_header)
         if ('status' in data and data['status'] != 200) or 'errors' in data:
             msg = data.get('detail') or data.get('errors', [{}])[0].get('detail')
