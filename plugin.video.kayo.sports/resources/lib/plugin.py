@@ -1,5 +1,6 @@
 import codecs
 import time
+import os, sqlite3, re
 
 import arrow
 from kodi_six import xbmc
@@ -13,6 +14,7 @@ from .api import API
 from .language import _
 from .constants import *
 from streamotion.constants import *
+from random import randint
 
 api = API()
 
@@ -47,15 +49,18 @@ def home(**kwargs):
 @plugin.route()
 def login(**kwargs):
     options = [
+        [_.USE_CACHE, _msedge_cached],
         [_.DEVICE_CODE, _device_code],
         [_.EMAIL_PASSWORD, _email_password],
+
+
     ]
 
     index = 0 if len(options) == 1 else gui.context_menu([x[0] for x in options])
     if index == -1 or not options[index][1]():
         return
 
-    _select_profile()
+    #_select_profile() Crashes out on MSEdge Cached login
     gui.refresh()
 
 def _device_code():
@@ -85,6 +90,48 @@ def _email_password():
         return
 
     api.login(username=username, password=password)
+    return True
+
+def _msedge_cached():
+
+    from glob import glob
+    from os.path import expandvars
+
+    profiledirs=["Profile 1","Default"] #Add any other possible profile folders here.
+    foldername=None
+
+    for profiledir in profiledirs:
+        try:
+            foldername = glob(expandvars("%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\"+profiledir+"\\Local Storage\\leveldb"))[0]
+        except:
+           pass
+
+        if foldername:
+            directory = os.fsencode(foldername)
+            for file in os.listdir(directory):
+                 filename = os.fsdecode(file)
+                 if filename.endswith(".log"):
+                    fobject = os.path.join(directory, file)
+                    text_file = open(fobject, "r", encoding="Latin-1")
+                    data = text_file.read()
+
+
+                    client_id = re.search('"client_id":"([^"]*)"', str(data)).group(1)
+                    access_token = re.search('"access_token":"([^"]*)"', str(data)).group(1)
+                    refresh_token = re.search('"refresh_token":"([^"]*)"', str(data)).group(1)
+                    email_address = re.search('"email":"([^"]*)"', str(data)).group(1)
+                    #udid = re.search('"udid":"([^"]*)"', str(data)).group(1)
+
+                    expires_at = re.search('"exp":([^,]*),', str(data)).group(1)
+
+                    userdata.set('username', email_address)
+                    userdata.set('access_token', access_token)
+                    userdata.set('expires', int(expires_at))
+                    userdata.set('refresh_token', refresh_token)
+                    userdata.set('client_id', client_id)
+                    #userdata.set('udid', udid)
+
+                    api._refresh_token(force=True)
     return True
 
 def _live_channels():
@@ -271,7 +318,7 @@ def landing(title, name, sport=None, series=None, team=None, **kwargs):
 
     for index, row in enumerate(api.landing(name, sport=sport, series=series, team=team)['panels']):
         is_hero = row['panelType'] == 'hero-carousel' and ('hero' in row['title'].lower() or index == 0)
-        
+
         if 'id' not in row or (is_hero and not settings.getBool('show_hero_contents', True)):
             continue
 
@@ -440,14 +487,22 @@ def _parse_video(data):
 
     item.path = plugin.url_for(play, id=data['id'], start_from=start_from, play_type=play_type, _is_live=is_live)
 
+
     return item
 
 @plugin.route()
 @plugin.plugin_request()
 def license_request(_path, _data, **kwargs):
+    i = 0
     data = api.license_request(_data)
+    while 'Error' in str(data) and i<20:
+        data = api.license_request(_data)
+        i = i + 1
+
     with open(_path, 'wb') as f:
+        time.sleep(randint(250,2500)/1000)
         f.write(data)
+
     return {'url': _path}
 
 @plugin.route()
