@@ -17,7 +17,7 @@ class API(object):
         self._auth_header = {}
         self._subscribed = None
 
-        self._session = Session(base_url=self.BASE_URL, attempts=4, return_json=True, ssl_ciphers=SSL_CIPHERS, ssl_options=SSL_OPTIONS)
+        self._session = Session(base_url=self.BASE_URL, attempts=5, return_json=True, ssl_ciphers=SSL_CIPHERS, ssl_options=SSL_OPTIONS)
         self._session.headers = HEADERS
         self._set_authentication()
 
@@ -85,7 +85,7 @@ class API(object):
         log.debug('Refreshing token')
 
         payload = {
-            'client_id': self.CLIENT_ID,
+            'client_id': userdata.get('client_id'),
             'refresh_token': userdata.get('refresh_token'),
             'grant_type': 'refresh_token',
             'scope': 'openid offline_access drm:low email',
